@@ -1,6 +1,7 @@
 # encoding: utf-8
 require "logstash/filters/base"
 require "logstash/namespace"
+require "logstash/json"
 
 # ZeroMQ filter. This is the best way to send an event externally for filtering
 # It works much like an exec filter would by sending the event "offsite"
@@ -13,7 +14,7 @@ require "logstash/namespace"
 #
 # Note that this is a limited subset of the zeromq functionality in
 # inputs and outputs. The only topology that makes sense here is:
-# REQ/REP. 
+# REQ/REP. bunde
 class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
 
   config_name "zeromq"
@@ -38,10 +39,10 @@ class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
 
   # timeout in milliseconds on which to wait for a reply.
   config :timeout, :validate => :number, :default => 500
-  
+
   # number of retries, used for both sending and receiving messages.
   # for sending, retries should return instantly.
-  # for receiving, the total blocking time is up to retries X timeout, 
+  # for receiving, the total blocking time is up to retries X timeout,
   # which by default is 3 X 500 = 1500ms
   config :retries, :validate => :number, :default => 3
 
@@ -118,13 +119,13 @@ class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
   #will return a boolean for success, and a string containing one of several things:
   #  - empty string: response from server
   #  - updated string: response from server
-  #  - original message: could not send request or get response from server in time 
+  #  - original message: could not send request or get response from server in time
   private
   def send_recv(message)
     success = false
     @retries.times do
       @logger.debug("0mq: sending", :request => message)
-      rc = @zsocket.send_string(message) 
+      rc = @zsocket.send_string(message)
       if ZMQ::Util.resultcode_ok?(rc)
         success = true
         break
@@ -137,13 +138,13 @@ class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
     #if we did not succeed log it and fail here.
     if not success
       @logger.warn("0mq: error sending message (zmq_errno = #{ZMQ::Util.errno}, zmq_error_string = '#{ZMQ::Util.error_string}'")
-      return success, message 
+      return success, message
     end
 
     #now get reply
     reply = ''
     success = false
-    @retries.times do 
+    @retries.times do
       @logger.debug("0mq: polling for reply for #{@timeout}ms.")
       #poll the socket. If > 0, something to read. If < 0, error. If zero, loop
       num_readable = @poller.poll(@timeout)
@@ -160,12 +161,12 @@ class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
         connect
       end
     end # @retries.times
-     
+
     #if we maxed out on number of retries, then set reply to message so that
     #the event isn't cancelled. we want to carry on if the server is down.
-    if not success 
+    if not success
       @logger.warn("0mq: did not receive reply (zmq_errno = #{ZMQ::Util.errno}, zmq_error_string = '#{ZMQ::Util.error_string}'")
-      return success, message 
+      return success, message
     end
 
     return success, reply
@@ -193,7 +194,7 @@ class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
         event[@field] = event.sprintf(reply)
         filter_matched(event)
       else
-        reply = JSON.parse(reply)
+        reply = LogStash::Json.load(reply)
         event.overwrite(reply)
       end
       filter_matched(event)
