@@ -18,7 +18,6 @@ require "logstash/json"
 class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
 
   config_name "zeromq"
-  milestone 1
 
   # 0mq socket address to connect or bind
   # Please note that inproc:// will not work with logstash
