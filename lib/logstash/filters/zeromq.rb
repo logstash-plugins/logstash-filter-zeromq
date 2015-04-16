@@ -2,6 +2,7 @@
 require "logstash/filters/base"
 require "logstash/namespace"
 require "logstash/json"
+require "logstash/event"
 
 # ZeroMQ filter. This is the best way to send an event externally for filtering
 # It works much like an exec filter would by sending the event "offsite"
@@ -194,7 +195,7 @@ class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
         filter_matched(event)
       else
         reply = LogStash::Json.load(reply)
-        event.overwrite(reply)
+        event.overwrite(LogStash::Event.new(reply))
       end
       filter_matched(event)
       #if message send/recv was not successful add the timeout
