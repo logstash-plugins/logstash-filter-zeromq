@@ -27,8 +27,6 @@ class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
 
   # The field to send off-site for processing
   # If this is unset, the whole event will be sent
-  # TODO (lusis)
-  # Allow filtering multiple fields
   config :field, :validate => :string
 
   # 0mq mode
@@ -176,6 +174,7 @@ class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
     return unless filter?(event)
 
     begin
+      # TODO (lusis): Allow filtering multiple fields
       if @field
       	success, reply = send_recv(event[@field])
       else
