@@ -194,7 +194,7 @@ class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
         event[@field] = event.sprintf(reply)
         filter_matched(event)
       else
-        reply = LogStash::Json.load(reply)
+        reply = LogStash::Event.new(LogStash::Json.load(reply))
         event.overwrite(reply)
       end
       filter_matched(event)
