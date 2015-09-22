@@ -77,10 +77,10 @@ class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
   end #def register
 
   public
-  def teardown
+  def close
     close
     super()
-  end #def teardown
+  end #def close
 
   private
   def close
