@@ -171,7 +171,7 @@ class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
 
   public
   def filter(event)
-    return unless filter?(event)
+    
 
     begin
       # TODO (lusis): Allow filtering multiple fields
