@@ -2,6 +2,7 @@
 require "logstash/filters/base"
 require "logstash/namespace"
 require "logstash/json"
+require "concurrent"
 
 # ZeroMQ filter. This is the best way to send an event externally for filtering
 # It works much like an exec filter would by sending the event "offsite"
@@ -64,15 +65,18 @@ class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
   public
   def initialize(params)
     super(params)
-
-    @threadsafe = false
   end
+
+  ZmqThreadInfo = Struct.new(:zsocket, :poller)
 
   public
   def register
     require "ffi-rzmq"
     require "logstash/util/zeromq"
     self.class.send(:include, LogStash::Util::ZeroMQ)
+
+    # Map of threads to sockets
+    @threads_sockets = Concurrent::Map.new
     connect
   end #def register
 
@@ -84,27 +88,43 @@ class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
 
   private
   def close
-    @logger.debug("0mq: closing socket.")
-    @poller.deregister(@zsocket, ZMQ::POLLIN)
-    @zsocket.close
+    @threads_sockets.each do |thread, zmq_info|
+      @logger.debug("0mq: closing socket.")
+      zmq_info.poller.deregister(zmq_info.zsocket, ZMQ::POLLIN)
+      zmq_info.zsocket.close
+    end
   end #def close
 
   private
   def connect
+    if (thread_zmq_info = get_thread_zmq_info)
+      return thread_zmq_info
+    end
+
     @logger.debug("0mq: connecting socket")
-    @zsocket = context.socket(ZMQ::REQ)
-    error_check(@zsocket.setsockopt(ZMQ::LINGER, 0),
+    zsocket = context.socket(ZMQ::REQ)
+    error_check(zsocket.setsockopt(ZMQ::LINGER, 0),
                 "while setting ZMQ::LINGER == 0)")
-    @poller = ZMQ::Poller.new
-    @poller.register(@zsocket, ZMQ::POLLIN)
+    poller = ZMQ::Poller.new
+    poller.register(zsocket, ZMQ::POLLIN)
 
     if @sockopt
       #TODO: should make sure that ZMQ::LINGER and ZMQ::POLLIN are not changed
-      setopts(@zsocket, @sockopt)
+      setopts(zsocket, sockopt)
     end
 
-    setup(@zsocket, @address)
+    setup(zsocket, address)
+
+    set_thread_zmq_info(zsocket, poller)
   end #def connect
+
+  def get_thread_zmq_info
+    @threads_sockets[Thread.current] || connect
+  end
+
+  def set_thread_zmq_info(zsocket, poller)
+    @threads_sockets[Thread.current] = ZmqThreadInfo.new(zsocket, poller)
+  end
 
   private
   def reconnect
@@ -119,10 +139,12 @@ class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
   #  - original message: could not send request or get response from server in time
   private
   def send_recv(message)
+    zmq_info = get_thread_zmq_info
+
     success = false
     @retries.times do
       @logger.debug("0mq: sending", :request => message)
-      rc = @zsocket.send_string(message)
+      rc = zmq_info.zsocket.send_string(message)
       if ZMQ::Util.resultcode_ok?(rc)
         success = true
         break
@@ -144,10 +166,10 @@ class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
     @retries.times do
       @logger.debug("0mq: polling for reply for #{@timeout}ms.")
       #poll the socket. If > 0, something to read. If < 0, error. If zero, loop
-      num_readable = @poller.poll(@timeout)
+      num_readable = zmq_info.poller.poll(@timeout)
       if num_readable > 0
         #something to read, do it.
-        rc = @zsocket.recv_string(reply)
+        rc = zmq_info.zsocket.recv_string(reply)
         @logger.debug("0mq: message received, checking error")
         error_check(rc, "in recv_string")
         success = true
