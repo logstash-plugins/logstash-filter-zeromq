@@ -29,6 +29,10 @@ class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
   # If this is unset, the whole event will be sent
   config :field, :validate => :string
 
+  # A sentinel value to signal the filter to cancel the event
+  # If the peer returns the sentinel value, the event will be cancelled
+  config :sentinel, :validate => :string, :default => ""
+
   # 0mq mode
   # server mode binds/listens
   # client mode connects
@@ -178,10 +182,10 @@ class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
       else
         success, reply = send_recv(event.to_json)
       end
-      # If we receive an empty reply, this is an indication that the filter
+      # If we receive an sentinel value as reply, this is an indication that the filter
       # wishes to cancel this event.
-      if success && reply.empty?
-        @logger.debug? && @logger.debug("0mq: recieved empty reply, cancelling event.")
+      if success && reply == @sentinel
+        @logger.debug? && @logger.debug("0mq: recieved sentinel value, cancelling event.")
         event.cancel
         return
       end
