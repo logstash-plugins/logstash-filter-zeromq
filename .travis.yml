@@ -1,7 +1,8 @@
-sudo: false
+sudo: true
 language: ruby
 cache: bundler
+before_install: sudo apt-get install libzmq3-dev
 rvm:
-  - jruby-1.7.23
-script: 
+  - jruby-1.7.24
+script:
   - bundle exec rspec spec
