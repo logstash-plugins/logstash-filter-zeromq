@@ -178,7 +178,7 @@ class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
     begin
       # TODO (lusis): Allow filtering multiple fields
       if @field
-      	success, reply = send_recv(event[@field])
+        success, reply = send_recv(event.get(@field))
       else
         success, reply = send_recv(event.to_json)
       end
@@ -200,7 +200,9 @@ class LogStash::Filters::ZeroMQ < LogStash::Filters::Base
       filter_matched(event)
       #if message send/recv was not successful add the timeout
       if not success
-        (event["tags"] ||= []) << @add_tag_on_timeout
+        tags = event.get("tags") || []
+        tags << @add_tag_on_timeout
+        event.set("tags", tags)
       end
     rescue => e
       @logger.warn("0mq filter exception", :address => @address, :exception => e, :backtrace => e.backtrace)
