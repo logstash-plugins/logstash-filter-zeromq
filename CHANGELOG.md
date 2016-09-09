@@ -1,3 +1,6 @@
+## 3.0.0
+  - update to new plugin api
+
 ## 2.1.1
   - make sure we correctly encode the object #7
 
