@@ -1,3 +1,6 @@
+## 3.0.2
+  - Fix some documentation issues
+
 ## 3.0.0
   - update to new plugin api
 
